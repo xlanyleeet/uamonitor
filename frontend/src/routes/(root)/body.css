@@ -1,3 +1,1 @@
-body {
-    @apply mx-auto md:max-w-3xl max-w-full dark:bg-zinc-800 overflow-x-hidden scroll-smooth
-}
+/* Page styles are shared in app.css. */

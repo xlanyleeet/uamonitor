@@ -1,67 +1,31 @@
 <script lang="ts">
-  import Modal from './Modal.svelte';
-  import { createEventDispatcher } from 'svelte';
-  import { Highlight } from 'svelte-highlight';
-  import html from 'svelte-highlight/languages/xml';
-  import gruvbox from 'svelte-highlight/styles/gruvbox-dark-hard';
-
-  const dispatch = createEventDispatcher(),
-    close = (success: boolean) => {
-      dispatch(success ? 'click' : 'close');
-      open = false;
-    };
-
+  import { onDestroy, tick } from 'svelte';
+  import { browser } from '$app/env';
+  import Icon from './Icon.svelte';
+  export let open = false;
+  export let title: string;
+  export let server_id = 0;
   let dialog: HTMLDialogElement;
-  let isModalOpen = false;
-
-  export let open = true,
-    title: string,
-    type: 'server' | 'embed' = 'embed',
-    server_id: number = 0;
-
-  let code = `<iframe id="card"
-  title="UAMonitor"
-  scrolling="no"
-  height="256"
-  width="500"
-  src="https://stats.m0e.space/s/${server_id}?theme=dark">
-</iframe>`;
-
-  $: if (open) setTimeout(() => !dialog?.open && dialog.showModal(), 0);
-  $: dialog?.addEventListener('close', () => close(false));
+  $: origin = browser ? window.location.origin : '';
+  $: code = '<iframe title="UAMonitor" width="500" height="280" src="' + origin + '/s/' + server_id + '?theme=dark"></iframe>';
+  async function sync(isOpen: boolean) {
+    await tick();
+    if (!dialog) return;
+    if (isOpen && !dialog.open) dialog.showModal();
+    else if (!isOpen && dialog.open) dialog.close();
+  }
+  $: if (browser) void sync(open);
+  onDestroy(() => { if (dialog?.open) dialog.close(); });
 </script>
-
-<svelte:head>
-  {@html gruvbox}
-</svelte:head>
-
-{#if open}
-  <dialog
-    bind:this={dialog}
-    on:click={event => (event.target === dialog ? close(false) : '')}
-    class="fixed my-auto w-full max-w-xl space-y-3 rounded-xl bg-zinc-200 dark:bg-zinc-800 p-4 backdrop:bg-black backdrop:bg-opacity-50"
-  >
-    <h1
-      class="flex items-center justify-between gap-4 text-2xl text-black dark:text-white font-bold"
-    >
-      {title}
-    </h1>
+<dialog bind:this={dialog} on:close={() => open = false} on:cancel={() => open = false}
+  aria-label={title} class="modal">
+  {#if open}
+    <div class="modal-heading">
+      <h2>{title}</h2>
+      <button class="icon-button" aria-label="Закрити" on:click={() => open = false}><Icon name="close" /></button>
+    </div>
     <slot />
-    {#if type === 'server'}
-      <a href="#" on:click={() => (isModalOpen = true)}>ID: {server_id}</a>
-      <Modal bind:open={isModalOpen} title="Додати моніторинг собі на сторінку" type="embed">
-        <div class="dark:text-white text-black">
-          <p>Додати можна за допомогою &#60;iframe&#62;:</p>
-          <div class="m-4">
-            <Highlight language={html} {code} />
-          </div>
-          <p>Де:</p>
-          <ul class="list-disc">
-            <li class="ml-8"><strong>theme=dark</strong> можна змінювати на світлу "light"</li>
-            <li class="ml-8"><strong>{server_id}</strong> - ідентифікатор серверу</li>
-          </ul>
-        </div>
-      </Modal>
-    {/if}
-  </dialog>
-{/if}
+    <pre class="embed-code">{code}</pre>
+    <p class="small muted">Для світлої теми змініть theme=dark на theme=light.</p>
+  {/if}
+</dialog>

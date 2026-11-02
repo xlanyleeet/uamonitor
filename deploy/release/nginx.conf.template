@@ -1,0 +1,46 @@
+map $http_x_forwarded_proto $monitor_scheme {
+    default $scheme;
+    https https;
+}
+limit_req_zone $binary_remote_addr zone=api_clients:10m rate=2r/s;
+server {
+    listen 8080;
+    # Only the host gateway may supply the client address. Port is bound to loopback.
+    set_real_ip_from ${UM_PROXY_GATEWAY};
+    real_ip_header X-Real-IP;
+    server_tokens off;
+    client_max_body_size 1m;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    # iframe embedding is an intentional feature, so no global X-Frame-Options.
+    location = /health {
+        access_log off;
+        return 200 'ok';
+    }
+    location /moderation/ {
+        access_log off;
+        limit_req zone=api_clients burst=10 nodelay;
+        limit_req_status 429;
+        proxy_pass http://backend:8080;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        add_header Referrer-Policy no-referrer always;
+    }
+    location /api/ {
+        limit_req zone=api_clients burst=30 nodelay;
+        limit_req_status 429;
+        proxy_pass http://backend:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_read_timeout 15s;
+    }
+    location / {
+        proxy_pass http://frontend:3000;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Forwarded-Proto $monitor_scheme;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_read_timeout 20s;
+    }
+}

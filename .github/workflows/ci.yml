@@ -1,0 +1,48 @@
+name: validation
+on: [push, pull_request]
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: uamonitor
+          POSTGRES_DB: uamonitor
+          POSTGRES_PASSWORD: ci-test-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U uamonitor -d uamonitor"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    defaults:
+      run:
+        working-directory: backend-go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend-go/go.mod
+          cache-dependency-path: backend-go/go.sum
+      - run: go vet ./...
+      - run: go test -race -count=1 ./...
+        env:
+          UM_TEST_DATABASE_URL: postgres://uamonitor:ci-test-password@127.0.0.1:5432/uamonitor?sslmode=disable
+      - run: go build -mod=readonly ./...
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+      - run: npm test
+      - run: npm audit --audit-level=high

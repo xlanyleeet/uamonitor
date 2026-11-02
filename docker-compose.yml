@@ -1,16 +1,86 @@
-version: "2"
+x-backend: &backend
+  image: uamonitor-api:2.0.0
+  build: ./backend-go
+  environment: &backend-env
+    UM_DATABASE_URL: postgres://uamonitor:${UM_DB_PASSWORD:?Set UM_DB_PASSWORD in .env}@db:5432/uamonitor?sslmode=disable
+    UM_POLL_SECONDS: ${UM_POLL_SECONDS:-600}
+    UM_POLL_CONCURRENCY: ${UM_POLL_CONCURRENCY:-16}
+    UM_RETENTION_DAYS: ${UM_RETENTION_DAYS:-30}
+    UM_TRUST_PROXY: "true"
+    UM_DISCORD_WEBHOOK_URL: ${UM_DISCORD_WEBHOOK_URL:-}
+    UM_PUBLIC_URL: ${UM_PUBLIC_URL:-}
+  read_only: true
+  tmpfs: [/tmp:size=16m]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
 services:
-  backend:
-    build: backend
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: uamonitor
+      POSTGRES_DB: uamonitor
+      POSTGRES_PASSWORD: ${UM_DB_PASSWORD:?Set UM_DB_PASSWORD in .env}
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U uamonitor -d uamonitor"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     restart: unless-stopped
-    ports:
-      - "9012:8080"
-    env_file:
-      - ./backend/.env
-  frontend:
-    build: frontend
-    restart: unless-stopped
-    ports:
-      - "9013:3000"
+  migrate:
+    <<: *backend
+    command: ["-migrate"]
     depends_on:
-      - backend
+      db:
+        condition: service_healthy
+    restart: "no"
+  backend:
+    <<: *backend
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1:8080/ready]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+  frontend:
+    build: ./frontend
+    image: uamonitor-web:2.0.0
+    environment:
+      API_BASE_URL: http://backend:8080
+      PROTOCOL_HEADER: x-forwarded-proto
+      HOST_HEADER: x-forwarded-host
+      ADDRESS_HEADER: x-forwarded-for
+      XFF_DEPTH: "1"
+    read_only: true
+    tmpfs: [/tmp:size=32m]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/about').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+  proxy:
+    image: nginxinc/nginx-unprivileged:1.28-alpine
+    ports:
+      - "${UM_BIND:-127.0.0.1}:${UM_HTTP_PORT:-9013}:8080"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    read_only: true
+    tmpfs: [/tmp:size=32m]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      frontend:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  database:

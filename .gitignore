@@ -1,2 +1,17 @@
 .vscode
 node_modules/
+*.log
+.env
+.env.*
+!.env.example
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.dump
+servers.local.json
+backend-go/uamonitor
+backend-go/*.exe
+frontend/.svelte-kit/
+frontend/build/
+dist/

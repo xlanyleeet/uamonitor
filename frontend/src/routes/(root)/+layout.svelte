@@ -1,62 +1,28 @@
 <script lang="ts">
   import '../../app.css';
-  import './body.css';
-  import { theme } from '$lib/stores';
-  import { browser } from '$app/environment';
-
-  $: browser && (document.documentElement.className = $theme);
+  import '../../artlist.css';
+  import '../../admission.css';
+  import { theme } from '#lib/stores.ts';
+  import { browser } from '$app/env';
+  import Icon from '#lib/components/Icon.svelte';
+  import AutoRefresh from '#lib/components/AutoRefresh.svelte';
+  $: if (browser) document.documentElement.classList.toggle('dark',$theme === 'dark');
 </script>
-
-<svelte:head>
-  <title>UAMonitor</title>
-
-  <meta property="og:url" content="https://stats.m0e.space" />
-  <meta property="og:title" content="UAMonitor" />
-  <meta property="og:description" content="Безкоштовний моніторинг українських серверів" />
-  <meta property="og:image" content="https://stats.m0e.space/favicon.png" />
-</svelte:head>
-
-<header
-  class="p-6 md:mt-2 mb-4 max-h-16 md:rounded-xl md:max-w-3xl max-w-full mx-auto bg-white dark:bg-neutral-900 rounded-none shadow-lg flex flex-row justify-start gap-5 items-center"
->
-  <div class="flex flex-row basis-1/3 justify-start gap-5 items-center">
-    <a href="/" class="focusable object-scale-down">
-      <img src="/favicon.png" class="object-scale-down rounded-lg h-10 w-10" alt="UAMonitor" />
-    </a>
-    <a href="/about" class="focusable text-blue-500">Про сайт</a>
-  </div>
-  <div class="basis-2/3 float-right flex flex-row-reverse gap-3">
-    <a href="https://github.com/Andrmist/uamonitor" class="focusable h-8 w-8"
-      ><img
-        class="w-full h-full"
-        src={$theme === 'dark' ? 'img/github_light.svg' : '/img/github.svg'}
-        alt="Github"
-      /></a
-    >
-    <a
-      href="#"
-      class="focusable h-8 w-8"
-      on:click={() => ($theme === 'dark' ? theme.set('light') : theme.set('dark'))}
-      ><img
-        class="w-full h-full"
-        src={$theme === 'dark' ? 'img/light.svg' : '/img/dark.svg'}
-        alt="Github"
-      /></a
-    >
+<svelte:head><title>UAMonitor — сервери Minecraft</title><meta name="description" content="Українські Minecraft-сервери: знайдіть спільноту, перевірте онлайн та історію гравців." /></svelte:head>
+<a class="skip-link" href="#main">До вмісту</a>
+<header class="site-header">
+  <div class="site-container nav-content">
+    <a class="brand" href="/" aria-label="UAMonitor — головна"><span class="brand-symbol"><Icon name="server" size={25} /></span><span>UAMonitor<span class="brand-caption"> — сервери Minecraft</span></span></a>
+    <nav class="nav-actions" aria-label="Головна навігація">
+      <a class="button button-quiet random-link" href="/random" data-sveltekit-reload><Icon name="shuffle" size={16} /><span>Випадковий сервер</span></a>
+      <a class="button button-primary" href="/add-server"><Icon name="plus" size={16} /><span>Додати сервер</span></a>
+      <button class="icon-button" aria-label={$theme === 'dark' ? 'Увімкнути світлу тему' : 'Увімкнути темну тему'} title="Змінити тему" on:click={() => theme.set($theme === 'dark' ? 'light' : 'dark')}><Icon name={$theme === 'dark' ? 'sun' : 'moon'} /></button>
+    </nav>
   </div>
 </header>
-
-<div
-  class="p-4 border-2 rounded dark:bg-amber-900 dark:bg-opacity-50 dark:text-amber-500 text-amber-700 bg-amber-100  border-amber-900/10"
-  role="alert"
->
-  <strong class="text-md font-medium"
-    >З'явився телеграм канал з новинами розробки та обговореннями: <a
-      class="text-blue-600 dark:text-blue-400"
-      href="https://t.me/uamonitor_news">@uamonitor_news</a
-    ></strong
-  >
-</div>
-<div class="mt-4">
-  <slot />
-</div>
+<main id="main" class="site-container page-content"><AutoRefresh /><slot /></main>
+<footer class="site-footer"><div class="site-container footer-content">
+  <div><a class="brand footer-brand" href="/"><Icon name="server" size={20} />UAMonitor</a><p>Знайдіть свою спільноту.<br />Грайте на українських серверах Minecraft.</p></div>
+  <nav aria-label="Посилання у підвалі"><strong>Проєкт</strong><a href="/">Список серверів</a><a href="/requirements">Вимоги до серверів</a><a href="/add-server">Подати заявку</a><a href="/about">Про моніторинг</a></nav>
+  <div class="footer-credit"><strong>Відкритий код</strong><a href="https://github.com/Andrmist/uamonitor" target="_blank" rel="noopener noreferrer">Оригінальний UAMonitor ↗</a><a href="https://github.com/Wojtazzzz/ArtList.dev" target="_blank" rel="noopener noreferrer">Дизайн на основі ArtList.dev ↗</a><a href="/licenses/artlist-MIT.txt">Ліцензія MIT</a></div>
+</div><div class="site-container footer-bottom">UAMonitor · Minecraft Java Edition<span>Історія онлайн за останні 24 години</span></div></footer>

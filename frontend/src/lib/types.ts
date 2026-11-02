@@ -1,45 +1,11 @@
-export interface GraphPointData {
-  isOnline: boolean;
-  onlineCount: number;
-  date: string;
-}
-
-export interface GraphServer {
-  id: number;
-  data: GraphPointData[];
-}
-
-export interface OfflineStatus {
-  date: string;
-  isOnline: false;
-  onlineCount: 0;
-}
-
-export interface OnlineStatus {
-  date: string;
-  isOnline: true;
-  onlineCount: number;
-  maxOnline: number;
-  version: string;
-}
-
-export type Status = OfflineStatus | OnlineStatus;
-
+export interface Status { date: string; isOnline: boolean; onlineCount: number | null; maxOnline: number | null; version: string | null; }
+export interface GraphPointData { isOnline: boolean; onlineCount: number; date: string; }
+export interface GraphServer { id: number; data: GraphPointData[]; }
 export interface Server {
-  id: number;
-  name: string;
-  description: string;
-  ip: string;
-  port: string;
-  icon: string;
-  link: string;
-  telegram: string;
-  discord: string;
-  youtube: string;
+  id: number; name: string; ip: string; port: string;
+  icon: string | null; link: string | null; telegram: string | null;
+  discord: string | null; youtube: string | null; description: string | null;
+  uptime?: { days: number; percent: number | null; coverage: number };
   statuses: Status[];
-  graph: GraphServer;
 }
-
-export interface ParsedServer extends Server {
-  graph: GraphServer;
-}
+export interface ParsedServer extends Server { graph: GraphServer; }

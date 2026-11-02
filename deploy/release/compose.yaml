@@ -1,0 +1,98 @@
+x-backend: &backend
+  image: gradient-monitor-api:2026.10.27
+  environment: &backend-env
+    UM_DATABASE_URL: postgres://uamonitor:${UM_DB_PASSWORD:?Set UM_DB_PASSWORD in .env}@db:5432/uamonitor?sslmode=disable
+    UM_POLL_SECONDS: ${UM_POLL_SECONDS:-600}
+    UM_POLL_CONCURRENCY: ${UM_POLL_CONCURRENCY:-16}
+    UM_RETENTION_DAYS: ${UM_RETENTION_DAYS:-30}
+    UM_TRUST_PROXY: "true"
+    UM_DISCORD_WEBHOOK_URL: ${UM_DISCORD_WEBHOOK_URL:-}
+    UM_PUBLIC_URL: ${UM_PUBLIC_URL:-}
+  read_only: true
+  tmpfs: [/tmp:size=16m]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+services:
+  db:
+    image: gradient-monitor-db:2026.10.27
+    environment:
+      POSTGRES_USER: uamonitor
+      POSTGRES_DB: uamonitor
+      POSTGRES_PASSWORD: ${UM_DB_PASSWORD:?Set UM_DB_PASSWORD in .env}
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U uamonitor -d uamonitor"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  migrate:
+    <<: *backend
+    command: ["-migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+  backend:
+    <<: *backend
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1:8080/ready]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+  frontend:
+    image: gradient-monitor-web:2026.10.27
+    environment:
+      ORIGIN: ${UM_PUBLIC_URL:?Set UM_PUBLIC_URL in .env}
+      API_BASE_URL: http://backend:8080
+      PROTOCOL_HEADER: x-forwarded-proto
+      HOST_HEADER: x-forwarded-host
+      ADDRESS_HEADER: x-forwarded-for
+      XFF_DEPTH: "1"
+    read_only: true
+    tmpfs: [/tmp:size=32m]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/about').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+  proxy:
+    image: gradient-monitor-proxy:2026.10.27
+    ports:
+      - "${UM_BIND:-127.0.0.1}:${UM_HTTP_PORT:-9013}:8080"
+    environment:
+      UM_PROXY_GATEWAY: ${UM_PROXY_GATEWAY:-172.30.91.1}
+      NGINX_ENVSUBST_FILTER: ^UM_PROXY_GATEWAY$
+    read_only: true
+    tmpfs: [/tmp:size=32m, "/etc/nginx/conf.d:size=1m,uid=101,gid=101,mode=0755"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1:8080/health]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+volumes:
+  database:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${UM_NETWORK_SUBNET:-172.30.91.0/24}
+          gateway: ${UM_PROXY_GATEWAY:-172.30.91.1}

@@ -1,16 +1,8 @@
 import { writable } from 'svelte/store';
-import { browser } from '$app/environment';
-import { page } from '$app/stores';
-import url from 'url';
-
-export const theme = writable(
-  (browser && localStorage.getItem('theme')) ||
-    (browser &&
-      window.location.search
-        .slice(1)
-        .split('&')
-        .find(e => e.split('=')[0] === 'theme')
-        ?.split('=')[1]) ||
-    'light'
-);
-theme.subscribe(value => browser && localStorage.setItem('theme', value));
+import { browser } from '$app/env';
+let initial = 'light';
+if (browser) {
+  try { initial = new URLSearchParams(location.search).get('theme') || localStorage.getItem('theme') || 'light'; } catch {}
+}
+export const theme = writable(initial === 'dark' ? 'dark' : 'light');
+if (browser) theme.subscribe(value => { try { localStorage.setItem('theme', value); } catch {} });
